@@ -1,5 +1,5 @@
 players = {}
-entitys = {}
+entities = {}
 ESX = nil
 
 TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
@@ -48,5 +48,5 @@ RegisterServerEvent("esx_zombiesystem:RegisterNewZombie")
 AddEventHandler("esx_zombiesystem:RegisterNewZombie", function(entity)
 	TriggerClientEvent("esx_zombiesystem:ZombieSync", -1, entity)
 
-	table.insert(entitys, entity)
+	table.insert(entities, entity)
 end)

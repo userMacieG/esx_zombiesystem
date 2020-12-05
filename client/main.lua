@@ -1,5 +1,6 @@
 players = {}
-entitys = {}
+entities = {}
+objects = {}
 ESX = nil
 
 Citizen.CreateThread(function()
@@ -19,11 +20,6 @@ end
 
 SetBlackout(Config.Blackout)
 
-RegisterNetEvent('esx:playerLoaded')
-AddEventHandler('esx:playerLoaded', function(xPlayer)
-	PlayerData = xPlayer
-end)
-
 RegisterNetEvent("esx_zombiesystem:playerupdate")
 AddEventHandler("esx_zombiesystem:playerupdate", function(mPlayers)
 	players = mPlayers
@@ -35,21 +31,17 @@ TriggerServerEvent("esx_zombiesystem:newplayer", PlayerId())
 RegisterNetEvent("esx_zombiesystem:ZombieSync")
 AddEventHandler("esx_zombiesystem:ZombieSync", function()
 	AddRelationshipGroup("zombie")
-	SetRelationshipBetweenGroups(0, GetHashKey("zombie"), GetHashKey("PLAYER"))
-	SetRelationshipBetweenGroups(2, GetHashKey("PLAYER"), GetHashKey("zombie"))
+	SetRelationshipBetweenGroups(0, `zombie`, `PLAYER`)
+	SetRelationshipBetweenGroups(2, `PLAYER`, `zombie`)
 
 	while true do
 		Citizen.Wait(1)
 
-		if #entitys < Config.SpawnZombie then
+		if #entities < Config.SpawnZombie then
 			x, y, z = table.unpack(GetEntityCoords(PlayerPedId(), true))
-			EntityModel = Config.Models[math.random(1, #Config.Models)]
-			EntityModel = string.upper(EntityModel)
+			entityModel = Config.Models[math.random(1, #Config.Models)]
 
-			RequestModel(GetHashKey(EntityModel))
-			while not HasModelLoaded(GetHashKey(EntityModel)) or not HasCollisionForModelLoaded(GetHashKey(EntityModel)) do
-				Citizen.Wait(1)
-			end
+			ESX.Streaming.RequestModel(entityModel)
 
 			local posX = x
 			local posY = y
@@ -60,7 +52,6 @@ AddEventHandler("esx_zombiesystem:ZombieSync", function()
 
 				posX = x + math.random(-Config.MaxSpawnDistance, Config.MaxSpawnDistance)
 				posY = y + math.random(-Config.MaxSpawnDistance, Config.MaxSpawnDistance)
-
 				_, posZ = GetGroundZFor_3dCoord(posX + .0, posY + .0, z, 1)
 
 				for _, player in pairs(players) do
@@ -77,44 +68,41 @@ AddEventHandler("esx_zombiesystem:ZombieSync", function()
 				end
 			until canSpawn
 
-			entity = CreatePed(4, GetHashKey(EntityModel), posX, posY, posZ, 0.0, true, false)
+			entity = CreatePed(4, entityModel, posX, posY, posZ, 0.0, true, false)
 			walk = Config.Walks[math.random(1, #Config.Walks)]
 
-			RequestAnimSet(walk)
-			while not HasAnimSetLoaded(walk) do
-				Citizen.Wait(1)
-			end
+			ESX.Streaming.RequestAnimDict(walk)
 
 			SetPedMovementClipset(entity, walk, 1.0)
 			TaskWanderStandard(entity, 1.0, 10)
 			SetCanAttackFriendly(entity, true, true)
 			SetPedCanEvasiveDive(entity, false)
-			SetPedRelationshipGroupHash(entity, GetHashKey("zombie"))
+			SetPedRelationshipGroupHash(entity, `zombie`)
 			SetPedCombatAbility(entity, 0)
 			SetPedCombatRange(entity,0)
 			SetPedCombatMovement(entity, 0)
 			SetPedAlertness(entity,0)
 			SetPedIsDrunk(entity, true)
-			SetPedConfigFlag(entity,100,1)
-			ApplyPedDamagePack(entity,"BigHitByVehicle", 0.0, 9.0)
-			ApplyPedDamagePack(entity,"SCR_Dumpster", 0.0, 9.0)
-			ApplyPedDamagePack(entity,"SCR_Torture", 0.0, 9.0)
+			SetPedConfigFlag(entity, 100, 1)
+			ApplyPedDamagePack(entity, "BigHitByVehicle", 0.0, 9.0)
+			ApplyPedDamagePack(entity, "SCR_Dumpster", 0.0, 9.0)
+			ApplyPedDamagePack(entity, "SCR_Torture", 0.0, 9.0)
 			DisablePedPainAudio(entity, true)
-			StopPedSpeaking(entity,true)
+			StopPedSpeaking(entity, true)
 			SetEntityAsMissionEntity(entity, true, true)
 
 			if not NetworkGetEntityIsNetworked(entity) then
 				NetworkRegisterEntityAsNetworked(entity)
 			end
 
-			table.insert(entitys, entity)
+			table.insert(entities, entity)
 		end
 
-		for i, entity in pairs(entitys) do
+		for i, entity in pairs(entities) do
 			if not DoesEntityExist(entity) then
 				SetEntityAsNoLongerNeeded(entity)
 
-				table.remove(entitys, i)
+				table.remove(entities, i)
 			else
 				local playerX, playerY, playerZ = table.unpack(GetEntityCoords(PlayerPedId(), true))
 				local pedX, pedY, pedZ = table.unpack(GetEntityCoords(entity, true))
@@ -125,7 +113,7 @@ AddEventHandler("esx_zombiesystem:ZombieSync", function()
 					SetEntityAsNoLongerNeeded(entity)
 					SetModelAsNoLongerNeeded(model)
 
-					table.remove(entitys, i)
+					table.remove(entities, i)
 				end
 			end
 
@@ -136,7 +124,7 @@ AddEventHandler("esx_zombiesystem:ZombieSync", function()
 				SetModelAsNoLongerNeeded(model)
 				DeleteEntity(entity)
 
-				table.remove(entitys,i)
+				table.remove(entities,i)
 			end
 		end
 	end
@@ -146,7 +134,7 @@ Citizen.CreateThread(function()
 	while true do
 		Citizen.Wait(1000)
 
-		for i, entity in pairs(entitys) do
+		for i, entity in pairs(entities) do
 			for j, player in pairs(players) do
 				local playerX, playerY, playerZ = table.unpack(GetEntityCoords(GetPlayerPed(player), true))
 				local distance = GetDistanceBetweenCoords(GetEntityCoords(GetPlayerPed(player)), GetEntityCoords(entity), true)
@@ -163,18 +151,19 @@ Citizen.CreateThread(function()
 	while true do
 		Citizen.Wait(1)
 
-		for i, entity in pairs(entitys) do
-			 	playerX, playerY, playerZ = table.unpack(GetEntityCoords(PlayerPedId(), true))
+		for i, entity in pairs(entities) do
+			playerX, playerY, playerZ = table.unpack(GetEntityCoords(PlayerPedId(), true))
 			pedX, pedY, pedZ = table.unpack(GetEntityCoords(entity, true))
 
 			if IsPedDeadOrDying(entity, 1) ~= 1 then
 				if Vdist(playerX, playerY, playerZ, pedX, pedY, pedZ) < 0.6 then
 					if IsPedRagdoll(entity, 1) ~= 1 then
 						if not IsPedGettingUp(entity) then
-							RequestAnimDict("misscarsteal4@actor")
-							TaskPlayAnim(entity,"misscarsteal4@actor","stumble",1.0, 1.0, 500, 9, 1.0, 0, 0, 0)
+							ESX.Streaming.RequestAnimDict("misscarsteal4@actor")
 
-							local playerPed = (PlayerPedId())
+							TaskPlayAnim(entity, "misscarsteal4@actor", "stumble", 1.0, 1.0, 500, 9, 1.0, 0, 0, 0)
+
+							local playerPed = PlayerPedId()
 							local maxHealth = GetEntityMaxHealth(playerPed)
 							local health = GetEntityHealth(playerPed)
 							local newHealth = math.min(maxHealth, math.floor(health - maxHealth / 8))
@@ -197,12 +186,12 @@ if Config.ZombieDropLoot then
 		while true do
 			Citizen.Wait(1)
 
-			for i, entity in pairs(entitys) do
+			for i, entity in pairs(entities) do
 				playerX, playerY, playerZ = table.unpack(GetEntityCoords(PlayerPedId(), true))
 				pedX, pedY, pedZ = table.unpack(GetEntityCoords(entity, true))
 
 				if DoesEntityExist(entity) == false then
-					table.remove(entitys, i)
+					table.remove(entities, i)
 				end
 
 				if IsPedDeadOrDying(entity, 1) == 1 then
@@ -216,10 +205,7 @@ if Config.ZombieDropLoot then
 
 								if IsControlJustReleased(1, 51) then
 									if DoesEntityExist(PlayerPedId()) then
-										RequestAnimDict("random@domestic")
-										while not HasAnimDictLoaded("random@domestic") do
-											Citizen.Wait(1)
-										end
+										ESX.Streaming.RequestAnimDict("random@domestic")
 
 										TaskPlayAnim(PlayerPedId(), "random@domestic", "pickup_low", 8.0, -8, 2000, 2, 0, 0, 0, 0)
 
@@ -250,7 +236,7 @@ if Config.ZombieDropLoot then
 										SetEntityAsNoLongerNeeded(entity)
 										SetModelAsNoLongerNeeded(model)
 
-										table.remove(entitys, i)
+										table.remove(entities, i)
 									end
 								end
 							end
@@ -268,7 +254,7 @@ if Config.SafeZoneRadioBlip then
 
 		SetBlipHighDetail(blip, true)
 		SetBlipColour(blip, 2)
-		SetBlipAlpha (blip, 128)
+		SetBlipAlpha(blip, 128)
 	end
 end
 
@@ -278,7 +264,7 @@ if Config.SafeZone then
 			Citizen.Wait(1)
 
 			for k, v in pairs(Config.SafeZoneCoords) do
-				for i, entity in pairs(entitys) do
+				for i, entity in pairs(entities) do
 					pedX, pedY, pedZ = table.unpack(GetEntityCoords(entity, true))
 
 					if Vdist(pedX, pedY, pedZ, v.x, v.y, v.z) < v.radio then
@@ -286,7 +272,7 @@ if Config.SafeZone then
 						SetEntityAsNoLongerNeeded(entity)
 						DeleteEntity(entity)
 
-						table.remove(entitys, i)
+						table.remove(entities, i)
 					end
 				end
 			end
@@ -296,13 +282,13 @@ end
 
 RegisterNetEvent('esx_zombiesystem:clear')
 AddEventHandler('esx_zombiesystem:clear', function()
-	for i, entity in pairs(entitys) do
+	for i, entity in pairs(entities) do
 		local model = GetEntityModel(entity)
 
 		SetEntityAsNoLongerNeeded(entity)
 		SetModelAsNoLongerNeeded(model)
 
-		table.remove(entitys, i)
+		table.remove(entities, i)
 	end
 end)
 
@@ -311,7 +297,7 @@ if Config.Debug then
 		while true do
 			Citizen.Wait(1)
 
-			for i, entity in pairs(entitys) do
+			for i, entity in pairs(entities) do
 				local playerX, playerY, playerZ = table.unpack(GetEntityCoords(PlayerPedId(), true))
 				local pedX, pedY, pedZ = table.unpack(GetEntityCoords(entity, false))
 
@@ -333,11 +319,67 @@ if Config.NoPeds then
 			SetScenarioPedDensityMultiplierThisFrame(0.0, 0.0)
 
 			local playerPed = PlayerPedId()
-			local pos = GetEntityCoords(playerPed)
+			local playerCoords = GetEntityCoords(playerPed)
 
-			RemoveVehiclesFromGeneratorsInArea(pos['x'] - 500.0, pos['y'] - 500.0, pos['z'] - 500.0, pos['x'] + 500.0, pos['y'] + 500.0, pos['z'] + 500.0);
+			RemoveVehiclesFromGeneratorsInArea(playerCoords.x - 500.0, playerCoords.y - 500.0, playerCoords.z - 500.0, playerCoords.x + 500.0, playerCoords.y + 500.0, playerCoords.z + 500.0)
 			SetGarbageTrucks(0)
 			SetRandomBoats(0)
+		end
+	end)
+end
+
+if Config.ObjectDropLoot then
+	Citizen.CreateThread(function()
+		while true do
+			Citizen.Wait(0)
+
+			for k, v in pairs(Config.ObjectsLoot) do
+				local playerPed = PlayerPedId()
+				local playerCoords = GetEntityCoords(playerPed)
+				local distanceobject = 2.2
+				local obj = GetClosestObjectOfType(playerCoords.x, playerCoords.y, playerCoords.z, distanceobject, v, false, true ,true)
+				local distance = GetDistanceBetweenCoords(playerCoords, GetEntityCoords(obj), true)
+
+				if distance <= distanceobject then
+					local objectCoords = GetEntityCoords(obj)
+
+					if not objects[obj] then
+						ESX.Game.Utils.DrawText3D(objectCoords + vector3(0.0, 0.0, 0.5), '~c~PRESS ~b~[E]~c~ TO SEARCH', 1, 4)
+					end
+
+					if IsControlJustReleased(0, 38) then
+						if not objects[obj] then
+							SetCurrentPedWeapon(PlayerPedId(), 0xA2719263, true)
+
+							ESX.Streaming.RequestAnimDict("anim@amb@clubhouse@tutorial@bkr_tut_ig3@")
+
+							TaskPlayAnim(playerPed, "anim@amb@clubhouse@tutorial@bkr_tut_ig3@", "machinic_loop_mechandplayer", 2.0, 2.0, 4000, 30, 0, 0, 0, 0)
+
+							Citizen.Wait(4000)
+
+							randomChance = math.random(1, 100)
+							randomWeapon = Config.WeaponLootObject[math.random(1, #Config.WeaponLootObject)]
+							randomItem = Config.ItemLootObject[math.random(1, #Config.ItemLootObject)]
+
+							if randomChance > 0 and randomChance < Config.ProbabilityWeaponLootObject then
+								local randomAmmo = math.random(1, 30)
+
+								GiveWeaponToPed(playerPed, randomWeapon, randomAmmo, true, false)
+
+								ESX.ShowNotification('You found ' .. randomWeapon)
+							elseif randomChance >= Config.ProbabilityWeaponLootObject and randomChance < Config.ProbabilityMoneyLootObject then
+								TriggerServerEvent('esx_zombiesystem:moneyloot')
+							elseif randomChance >= Config.ProbabilityMoneyLootObject and randomChance < Config.ProbabilityItemLootObject then
+								TriggerServerEvent('esx_zombiesystem:itemloot', randomItem)
+							elseif randomChance >= Config.ProbabilityItemLootObject and randomChance < 100 then
+								ESX.ShowNotification('You not found nothing')
+							end
+
+							objects[obj] = true
+					   	end
+					end
+				end
+			end
 		end
 	end)
 end
