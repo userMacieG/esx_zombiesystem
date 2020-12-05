@@ -1,16 +1,13 @@
-fx_version 'bodacious'
-games { 'gta5' }
+fx_version 'cerulean'
+game 'gta5'
 
 author 'Dislaik'
 description 'Zombie System for ESX Framework'
-version '1.2.9'
+version '1.3.0'
 
 client_scripts {
 	'config.lua',
-	'client/main.lua',
-	'client/loot.lua'
+	'client/*.lua',
 }
 
-server_script {
-	'server/main.lua'
-}
+server_script 'server/main.lua'
